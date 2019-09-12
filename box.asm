@@ -61,6 +61,101 @@ unbuffered_raw: db 0	; 0=process control codes, 1=do not
 welcome: db 'Hi Evan! How are you today?', 0ah, 'I am good.', 0
 msg_square: db 'Square', 0
 
+COLOR:
+	.BLACK:		dw COLOR16_TABLE.BLACK
+	.BLUE:		dw COLOR16_TABLE.BLUE
+	.GREEN:		dw COLOR16_TABLE.GREEN
+	.CYAN:		dw COLOR16_TABLE.CYAN
+	.RED:		dw COLOR16_TABLE.RED
+	.MAGENTA:	dw COLOR16_TABLE.MAGENTA
+	.BROWN:		dw COLOR16_TABLE.BROWN
+	.LIGHT_GRAY:	dw COLOR16_TABLE.LIGHT_GRAY
+	.DARK_GRAY:	dw COLOR16_TABLE.DARK_GRAY
+	.LIGHT_BLUE:	dw COLOR16_TABLE.LIGHT_BLUE
+	.LIGHT_GREEN:	dw COLOR16_TABLE.LIGHT_GREEN
+	.LIGHT_CYAN:	dw COLOR16_TABLE.LIGHT_CYAN
+	.LIGHT_RED:	dw COLOR16_TABLE.LIGHT_RED
+	.LIGHT_MAGENTA: dw COLOR16_TABLE.LIGHT_MAGENTA
+	.YELLOW:	dw COLOR16_TABLE.YELLOW
+	.WHITE:		dw COLOR16_TABLE.WHITE
+
+
+COLOR16_TABLE:
+	.BLACK:		db 'Black', 0
+	.BLUE:		db 'Blue', 0
+	.GREEN:		db 'Green', 0
+	.CYAN:		db 'Cyan', 0
+	.RED:		db 'Red', 0
+	.MAGENTA:	db 'Magenta', 0
+	.BROWN:		db 'Brown', 0
+	.LIGHT_GRAY:	db 'Light Gray', 0
+	.DARK_GRAY:	db 'Dark Gray', 0
+	.LIGHT_BLUE:	db 'Light Blue', 0
+	.LIGHT_GREEN:	db 'Light Green', 0
+	.LIGHT_CYAN:	db 'Light Cyan', 0
+	.LIGHT_RED:	db 'Light Red', 0
+	.LIGHT_MAGENTA: db 'Light Magenta', 0
+	.YELLOW:	db 'Yellow', 0
+	.WHITE:		db 'White', 0
+
+COLOR256_TABLE:
+	dw 0000h	; placeholder
+
+intro:
+	push bp
+	push cx
+
+	push word 0000h
+	push word VRAM_DBUF
+	push word 0000h
+	call clear_vram
+
+	push word (15 * 8) - .msg_hello_sz
+	push word 0000h
+	call set_cursor
+
+	mov cx, [text_color]
+	mov [text_color], word 0eh
+
+	push .msg_hello
+	call puts
+
+	mov [text_color], word 0fh
+
+	push .msg_controls
+	call puts
+
+	push .msg_wait
+	call puts
+
+	call doublebuffer
+	mov ax, 0001h
+	int 16h
+
+	mov [text_color], cx
+	pop cx
+	pop bp
+	ret
+	.msg_hello: db 'Hi Evan!', 0ah, 0
+	.msg_hello_sz equ $-.msg_hello
+	.msg_controls:
+		db 0ah, 0ah, 0ah, 0ah
+		db 'CONTROLS', 0ah
+		db '--------', 0ah, 0ah
+		db 'Text color: a, s', 0ah
+		db 'Background color: z, x', 0ah
+		db 'Shape color: [, ]', 0ah, 0ah
+		db 'SHAPE MOVEMENT', 0ah
+		db '--------------', 0ah, 0ah
+		db 'Up arrow: Move shape up', 0ah
+		db 'Down arrow: Move shape down', 0ah
+		db 'Left arrow: Move shape left', 0ah
+		db 'Right arrow: Move shape right', 0ah, 0ah
+		db 0ah, 0ah, 0ah
+		db 0
+	.msg_wait: db 'Press any key to begin...', 0ah, 0
+
+
 start:
 	; init video
 	mov ax, [vram_back]
@@ -69,25 +164,22 @@ start:
 	push word 13h		; 320x200 VGA, 256 colors
 	call set_graphics_mode
 
+	call intro
+
 	.mainloop:
 		; reset cursor position
 		mov word [cursor_x], 0
 		mov word [cursor_y], 0
 
 		push word [screen_color]
-		call clear_screen
+		push word VRAM_DBUF
+		push word 0000h
+		call clear_vram
 
 		;push welcome
 		;call puts
 
-		call charset_dump
-
-		;push word [shape_color]	 ; color
-		;push word [shape_size]	 ; width
-		;push word [shape_size] 	 ; height
-		;push word [shape_x_coord]	 ; x
-		;push word [shape_y_coord]	 ; y
-		;call draw_box
+		;call charset_dump
 
 		push word [shape_color]	 ; color
 		push word [shape_size]	 ; width
@@ -243,6 +335,9 @@ input_handler:
 	mov ax, 0000h
 	int 16h
 
+	cmp al, 'H'
+	je .help
+
 	cmp al, ' '
 	je .screen_color_next
 
@@ -283,6 +378,10 @@ input_handler:
 	je .shape_move_down
 
 	jmp .return
+
+	.help:
+		call intro
+		jmp .return
 
 	.screen_color_next:
 		add byte [screen_color], 01h
@@ -376,7 +475,7 @@ set_graphics_mode:
 	ret 2 * 1
 
 
-clear_screen:
+clear_vram:
 	push bp
 	mov bp, sp
 
@@ -384,10 +483,11 @@ clear_screen:
 	push cx
 	push di
 	push es
-	mov ax, [vram]
+	mov ax, [bp + 6]	; segment address
 	mov es, ax
 
-	mov ax, [bp + 4]
+	mov bx, [bp + 4]	; vram address
+	mov ax, [bp + 8]	; byte value
 	mov ah, al
 	xor di, di
 	mov cx, VIDEO_SIZE / 2
@@ -402,7 +502,7 @@ clear_screen:
 	pop ax
 	mov sp, bp
 	pop bp
-	ret 2 * 1
+	ret 2 * 3
 
 
 draw_pixel:
@@ -1349,8 +1449,8 @@ font:
 	; c
 	db 00000000b
 	db 00000000b
-	db 00000000b
 	db 00111110b
+	db 01000000b
 	db 01000000b
 	db 01000000b
 	db 00111110b
@@ -1428,13 +1528,13 @@ font:
 	db 00100100b
 	db 00000000b
 	; l
-	db 01100000b
-	db 00100000b
-	db 00100000b
-	db 00100000b
-	db 00100000b
-	db 00100000b
 	db 00110000b
+	db 00010000b
+	db 00010000b
+	db 00010000b
+	db 00010000b
+	db 00010000b
+	db 00011000b
 	db 00000000b
 	; m
 	db 00000000b
