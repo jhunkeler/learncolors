@@ -101,6 +101,16 @@ COLOR16_TABLE:
 COLOR256_TABLE:
 	dw 0000h	; placeholder
 
+SHAPES:
+	.SQUARE:	dw SHAPES_TABLE.SQUARE
+	.RECTANGLE:	dw SHAPES_TABLE.RECTANGLE
+			dw 0000h
+
+SHAPES_TABLE:
+	.SQUARE:	dw draw_square
+	.RECTANGLE:	dw draw_rectangle
+			dw 0000h
+
 intro:
 	push bp
 	push cx
@@ -677,6 +687,16 @@ draw_box:
 	.color: dw 0
 	.height: dw 0
 	.width: dw 0
+
+
+draw_square:
+	nop
+	ret
+
+
+draw_rectangle:
+	nop
+	ret
 
 
 draw_shape_orig:
